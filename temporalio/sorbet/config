@@ -1,0 +1,7 @@
+--dir
+.
+--ignore=tmp/
+--ignore=vendor/
+# Ignoring API files because we have the RBIs
+--ignore=lib/temporalio/api
+--ignore=lib/temporalio/internal/bridge/api

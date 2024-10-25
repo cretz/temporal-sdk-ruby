@@ -72,16 +72,20 @@ namespace :proto do
   task :generate do
     # Remove all existing
     FileUtils.rm_rf('lib/temporalio/api')
+    FileUtils.rm_rf('sorbet/rbi/shims/temporalio/api')
 
     def generate_protos(api_protos)
       # Generate API to temp dir and move
       FileUtils.rm_rf('tmp-proto')
+      FileUtils.rm_rf('tmp-proto-rbi')
       FileUtils.mkdir_p('tmp-proto')
+      FileUtils.mkdir_p('tmp-proto-rbi')
       sh 'bundle exec grpc_tools_ruby_protoc ' \
          '--proto_path=ext/sdk-core/sdk-core-protos/protos/api_upstream ' \
          '--proto_path=ext/sdk-core/sdk-core-protos/protos/api_cloud_upstream ' \
          '--proto_path=ext/additional_protos ' \
          '--ruby_out=tmp-proto ' \
+         '--rbi_out=grpc=false:tmp-proto-rbi ' \
          "#{api_protos.join(' ')}"
 
       # Walk all generated Ruby files and cleanup content and filename
@@ -97,7 +101,9 @@ namespace :proto do
 
       # Move from temp dir and remove temp dir
       FileUtils.cp_r('tmp-proto/temporal/api', 'lib/temporalio')
+      FileUtils.cp_r('tmp-proto-rbi/temporal/api', 'sorbet/rbi/shims/temporalio')
       FileUtils.rm_rf('tmp-proto')
+      FileUtils.rm_rf('tmp-proto-rbi')
     end
 
     # Generate from API with Google ones removed
@@ -336,13 +342,17 @@ namespace :proto do
 
     # Generate core protos
     FileUtils.rm_rf('lib/temporalio/internal/bridge/api')
+    FileUtils.rm_rf('sorbet/rbi/shims/internal/bridge/api')
     # Generate API to temp dir
     FileUtils.rm_rf('tmp-proto')
+    FileUtils.rm_rf('tmp-proto-rbi')
     FileUtils.mkdir_p('tmp-proto')
+    FileUtils.mkdir_p('tmp-proto-rbi')
     sh 'bundle exec grpc_tools_ruby_protoc ' \
        '--proto_path=ext/sdk-core/sdk-core-protos/protos/api_upstream ' \
        '--proto_path=ext/sdk-core/sdk-core-protos/protos/local ' \
        '--ruby_out=tmp-proto ' \
+       '--rbi_out=grpc=false:tmp-proto-rbi ' \
        "#{Dir.glob('ext/sdk-core/sdk-core-protos/protos/local/**/*.proto').join(' ')}"
     # Walk all generated Ruby files and cleanup content and filename
     Dir.glob('tmp-proto/temporal/sdk/**/*.rb') do |path|
@@ -358,7 +368,10 @@ namespace :proto do
     # Move from temp dir and remove temp dir
     FileUtils.mkdir_p('lib/temporalio/internal/bridge/api')
     FileUtils.cp_r(Dir.glob('tmp-proto/temporal/sdk/core/*'), 'lib/temporalio/internal/bridge/api')
+    FileUtils.mkdir_p('sorbet/rbi/shims/temporalio/internal/bridge/api')
+    FileUtils.cp_r(Dir.glob('tmp-proto-rbi/temporal/sdk/core/*'), 'sorbet/rbi/shims/temporalio/internal/bridge/api')
     FileUtils.rm_rf('tmp-proto')
+    FileUtils.rm_rf('tmp-proto-rbi')
   end
 end
 

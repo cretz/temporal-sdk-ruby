@@ -13,6 +13,7 @@ AllCops:
     - target/**/*
     - tmp/**/*
     - vendor/**/*
+    - sorbet/**/*.rbi
 
 # Keep cop rule settings in alphabetical order. For each rule setting, provide
 # justification for the change from default.

@@ -5,5 +5,6 @@ Gemfile.lock
 *.so
 temporalio/test/golangworker/golangworker
 temporalio/.yardoc
+temporalio/bin
 temporalio/doc
 temporalio/pkg

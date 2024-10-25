@@ -137,7 +137,7 @@ module Temporalio
     def initialize(
       connection:,
       namespace:,
-      data_converter: DataConverter.default,
+      data_converter: Converters::DataConverter.default,
       interceptors: [],
       logger: Logger.new($stdout, level: Logger::WARN),
       default_workflow_query_reject_condition: nil
@@ -166,7 +166,7 @@ module Temporalio
       @options.namespace
     end
 
-    # @return [DataConverter] Data converter used by this client.
+    # @return [Converters::DataConverter] Data converter used by this client.
     def data_converter
       @options.data_converter
     end
