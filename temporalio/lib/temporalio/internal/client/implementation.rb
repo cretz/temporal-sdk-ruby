@@ -19,6 +19,7 @@ require 'temporalio/error/failure'
 require 'temporalio/internal/proto_utils'
 require 'temporalio/runtime'
 require 'temporalio/search_attributes'
+require 'temporalio/workflow/definition'
 
 module Temporalio
   module Internal
@@ -45,11 +46,27 @@ module Temporalio
         end
 
         def start_workflow(input)
+          workflow_type = case input.workflow
+                          when Class
+                            unless input.workflow < Workflow::Definition
+                              raise ArgumentError,
+                                    "Class '#{input.workflow}' does not extend Temporalio::Workflow::Definition"
+                            end
+                            info = Workflow::Definition::Info.from_class(input.workflow)
+                            info.name || raise(ArgumentError, 'Cannot pass dynamic workflow to start')
+                          when Workflow::Definition::Info
+                            input.workflow.name || raise(ArgumentError, 'Cannot pass dynamic workflow to start')
+                          when String, Symbol
+                            input.workflow.to_s
+                          else
+                            raise ArgumentError, 'Workflow is not a workflow class or string/symbol'
+                          end
+
           # TODO(cretz): Signal/update with start
           req = Api::WorkflowService::V1::StartWorkflowExecutionRequest.new(
             request_id: SecureRandom.uuid,
             namespace: @client.namespace,
-            workflow_type: Api::Common::V1::WorkflowType.new(name: input.workflow.to_s),
+            workflow_type: Api::Common::V1::WorkflowType.new(name: workflow_type),
             workflow_id: input.workflow_id,
             task_queue: Api::TaskQueue::V1::TaskQueue.new(name: input.task_queue.to_s),
             input: @client.data_converter.to_payloads(input.args),
@@ -65,7 +82,7 @@ module Temporalio
             search_attributes: input.search_attributes&._to_proto,
             workflow_start_delay: ProtoUtils.seconds_to_duration(input.start_delay),
             request_eager_execution: input.request_eager_start,
-            header: Internal::ProtoUtils.headers_to_proto(input.headers, @client.data_converter)
+            header: ProtoUtils.headers_to_proto(input.headers, @client.data_converter)
           )
 
           # Send request
@@ -135,7 +152,7 @@ module Temporalio
             resp.groups.map do |group|
               Temporalio::Client::WorkflowExecutionCount::AggregationGroup.new(
                 group.count,
-                group.group_values.map { |payload| SearchAttributes.value_from_payload(payload) }
+                group.group_values.map { |payload| SearchAttributes._value_from_payload(payload) }
               )
             end
           )
@@ -181,6 +198,15 @@ module Temporalio
         end
 
         def signal_workflow(input)
+          signal_name = case input.signal
+                        when Workflow::Definition::Signal
+                          input.signal.name || raise(ArgumentError, 'Cannot call dynamic signal directly')
+                        when String, Symbol
+                          input.signal.to_s
+                        else
+                          raise ArgumentError, 'Signal is not a definition or string/symbol'
+                        end
+
           @client.workflow_service.signal_workflow_execution(
             Api::WorkflowService::V1::SignalWorkflowExecutionRequest.new(
               namespace: @client.namespace,
@@ -188,7 +214,7 @@ module Temporalio
                 workflow_id: input.workflow_id,
                 run_id: input.run_id || ''
               ),
-              signal_name: input.signal,
+              signal_name:,
               input: @client.data_converter.to_payloads(input.args),
               header: Internal::ProtoUtils.headers_to_proto(input.headers, @client.data_converter),
               identity: @client.connection.identity,
@@ -200,6 +226,15 @@ module Temporalio
         end
 
         def query_workflow(input)
+          query_type = case input.query
+                       when Workflow::Definition::Query
+                         input.query.name || raise(ArgumentError, 'Cannot call dynamic query directly')
+                       when String, Symbol
+                         input.query.to_s
+                       else
+                         raise ArgumentError, 'Query is not a definition or string/symbol'
+                       end
+
           begin
             resp = @client.workflow_service.query_workflow(
               Api::WorkflowService::V1::QueryWorkflowRequest.new(
@@ -209,7 +244,7 @@ module Temporalio
                   run_id: input.run_id || ''
                 ),
                 query: Api::Query::V1::WorkflowQuery.new(
-                  query_type: input.query,
+                  query_type:,
                   query_args: @client.data_converter.to_payloads(input.args),
                   header: Internal::ProtoUtils.headers_to_proto(input.headers, @client.data_converter)
                 ),
@@ -240,6 +275,15 @@ module Temporalio
             raise ArgumentError, 'ADMITTED wait stage not supported'
           end
 
+          name = case input.update
+                 when Workflow::Definition::Update
+                   input.update.name || raise(ArgumentError, 'Cannot call dynamic update directly')
+                 when String, Symbol
+                   input.update.to_s
+                 else
+                   raise ArgumentError, 'Update is not a definition or string/symbol'
+                 end
+
           req = Api::WorkflowService::V1::UpdateWorkflowExecutionRequest.new(
             namespace: @client.namespace,
             workflow_execution: Api::Common::V1::WorkflowExecution.new(
@@ -252,7 +296,7 @@ module Temporalio
                 identity: @client.connection.identity
               ),
               input: Api::Update::V1::Input.new(
-                name: input.update,
+                name:,
                 args: @client.data_converter.to_payloads(input.args),
                 header: Internal::ProtoUtils.headers_to_proto(input.headers, @client.data_converter)
               )

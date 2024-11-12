@@ -118,7 +118,13 @@ class Test < Minitest::Test
     attr_reader :server
 
     def initialize
-      @server = Temporalio::Testing::WorkflowEnvironment.start_local(logger: Logger.new($stdout))
+      @server = Temporalio::Testing::WorkflowEnvironment.start_local(
+        logger: Logger.new($stdout),
+        dev_server_extra_args: [
+          # Allow continue as new to be immediate
+          '--dynamic-config-value', 'history.workflowIdReuseMinimalInterval="0s"'
+        ]
+      )
       Minitest.after_run do
         @server.shutdown
       end
