@@ -6,9 +6,9 @@ module Temporalio
     class WorkflowAlreadyStartedError < Failure
       attr_reader workflow_id: String
       attr_reader workflow_type: String
-      attr_reader run_id: String
+      attr_reader run_id: String?
 
-      def initialize: (workflow_id: String, workflow_type: String, run_id: String) -> void
+      def initialize: (workflow_id: String, workflow_type: String, run_id: String?) -> void
     end
 
     class ApplicationError < Failure

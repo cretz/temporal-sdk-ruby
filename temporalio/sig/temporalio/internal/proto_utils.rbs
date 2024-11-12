@@ -14,6 +14,11 @@ module Temporalio
         Converters::DataConverter | Converters::PayloadConverter converter
       ) -> untyped?
 
+      def self.memo_to_proto_hash: (
+        Hash[String, Object?]? hash,
+        Converters::DataConverter | Converters::PayloadConverter converter
+      ) -> Hash[String, untyped]?
+
       def self.memo_from_proto: (
         untyped? memo,
         Converters::DataConverter | Converters::PayloadConverter converter

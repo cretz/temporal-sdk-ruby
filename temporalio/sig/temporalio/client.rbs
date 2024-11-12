@@ -54,7 +54,7 @@ module Temporalio
     def operator_service: -> Connection::OperatorService
 
     def start_workflow: (
-      String workflow,
+      singleton(Workflow::Definition) | Workflow::Definition::Info | Symbol | String workflow,
       *Object? args,
       id: String,
       task_queue: String,
@@ -65,7 +65,7 @@ module Temporalio
       ?id_conflict_policy: WorkflowIDConflictPolicy::enum,
       ?retry_policy: RetryPolicy?,
       ?cron_schedule: String?,
-      ?memo: Hash[String, Object?]?,
+      ?memo: Hash[String | Symbol, Object?]?,
       ?search_attributes: SearchAttributes?,
       ?start_delay: Float?,
       ?request_eager_start: bool,
@@ -73,7 +73,7 @@ module Temporalio
     ) -> WorkflowHandle
 
     def execute_workflow: (
-      String workflow,
+      singleton(Workflow::Definition) | Workflow::Definition::Info | Symbol | String workflow,
       *Object? args,
       id: String,
       task_queue: String,
@@ -84,7 +84,7 @@ module Temporalio
       ?id_conflict_policy: WorkflowIDConflictPolicy::enum,
       ?retry_policy: RetryPolicy?,
       ?cron_schedule: String?,
-      ?memo: Hash[String, Object?]?,
+      ?memo: Hash[String | Symbol, Object?]?,
       ?search_attributes: SearchAttributes?,
       ?start_delay: Float?,
       ?request_eager_start: bool,

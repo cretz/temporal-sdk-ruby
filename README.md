@@ -1,4 +1,4 @@
-![Temporal Ruby SDK](https://raw.githubusercontent.com/temporalio/assets/main/files/w/ruby.png)
+<div style="overflow: hidden"><img src="https://raw.githubusercontent.com/temporalio/assets/main/files/w/ruby.png" alt="Temporal Ruby SDK" /></div>
 
 ![Ruby 3.1 | 3.2 | 3.3](https://img.shields.io/badge/ruby-3.1%20%7C%203.2%20%7C%203.3-blue.svg?style=for-the-badge)
 [![MIT](https://img.shields.io/github/license/temporalio/sdk-ruby.svg?style=for-the-badge)](LICENSE)
@@ -215,7 +215,7 @@ which supports the following types:
 * `nil`
 * "bytes" (i.e. `String` with `Encoding::ASCII_8BIT` encoding)
 * `Google::Protobuf::MessageExts` instances
-* [`JSON` module](https://docs.ruby-lang.org/en/master/JSON.html) for everything else
+* [JSON module](https://docs.ruby-lang.org/en/master/JSON.html) for everything else
 
 This means that normal Ruby objects will use `JSON.generate` when serializing and `JSON.parse` when deserializing (with
 `create_additions: true` set by default). So a Ruby object will often appear as a hash when deserialized. While

@@ -60,7 +60,7 @@ module Temporalio
         class StartWorkflow
           include Action
 
-          attr_accessor workflow: String
+          attr_accessor workflow: singleton(Workflow::Definition) | Workflow::Definition::Info | Symbol | String
           attr_accessor args: Array[Object?]
           attr_accessor id: String
           attr_accessor task_queue: String
@@ -78,7 +78,7 @@ module Temporalio
           ) -> StartWorkflow
 
           def initialize: (
-            String workflow,
+            singleton(Workflow::Definition) | Workflow::Definition::Info | Symbol | String workflow,
             *Object? args,
             id: String,
             task_queue: String,
