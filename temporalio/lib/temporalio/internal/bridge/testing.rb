@@ -33,6 +33,26 @@ module Temporalio
             result
           end
 
+          StartTestServerOptions = Struct.new(
+            :existing_path, # Optional
+            :sdk_name,
+            :sdk_version,
+            :download_version,
+            :download_dest_dir, # Optional
+            :port, # Optional
+            :extra_args,
+            keyword_init: true
+          )
+
+          def self.start_test_server(runtime, options)
+            queue = Queue.new
+            async_start_test_server(runtime, options, queue)
+            result = queue.pop
+            raise result if result.is_a?(Exception)
+
+            result
+          end
+
           def shutdown
             queue = Queue.new
             async_shutdown(queue)
