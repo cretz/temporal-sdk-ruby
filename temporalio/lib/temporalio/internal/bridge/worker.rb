@@ -26,6 +26,8 @@ module Temporalio
           :max_task_queue_activities_per_second,
           :graceful_shutdown_period,
           :use_worker_versioning,
+          :nondeterminism_as_workflow_fail,
+          :nondeterminism_as_workflow_fail_for_types,
           keyword_init: true
         )
 
@@ -76,6 +78,13 @@ module Temporalio
           queue = Queue.new
           # TODO(cretz): Log error on this somehow?
           async_complete_activity_task(proto.to_proto, queue)
+        end
+
+        def complete_workflow_activation(proto)
+          queue = Queue.new
+          async_complete_workflow_activation(proto.to_proto, queue)
+          result = queue.pop
+          raise result if result.is_a?(Exception)
         end
       end
     end

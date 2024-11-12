@@ -100,13 +100,13 @@ module Temporalio
             raise Error::WorkflowFailedError.new, cause: @client.data_converter.from_failure(attrs.failure)
           when :EVENT_TYPE_WORKFLOW_EXECUTION_CANCELED
             attrs = event.workflow_execution_canceled_event_attributes
-            raise Error::WorkflowFailedError.new, cause: Error::CanceledError.new(
+            raise Error::WorkflowFailedError.new, 'Workflow execution canceled', cause: Error::CanceledError.new(
               'Workflow execution canceled',
               details: @client.data_converter.from_payloads(attrs&.details)
             )
           when :EVENT_TYPE_WORKFLOW_EXECUTION_TERMINATED
             attrs = event.workflow_execution_terminated_event_attributes
-            raise Error::WorkflowFailedError.new, cause: Error::TerminatedError.new(
+            raise Error::WorkflowFailedError.new, 'Workflow execution terminated', cause: Error::TerminatedError.new(
               Internal::ProtoUtils.string_or(attrs.reason, 'Workflow execution terminated'),
               details: @client.data_converter.from_payloads(attrs&.details)
             )
@@ -115,7 +115,7 @@ module Temporalio
             hist_run_id = attrs.new_execution_run_id
             next if follow_runs && hist_run_id && !hist_run_id.empty?
 
-            raise Error::WorkflowFailedError.new, cause: Error::TimeoutError.new(
+            raise Error::WorkflowFailedError.new, 'Workflow execution timed out', cause: Error::TimeoutError.new(
               'Workflow execution timed out',
               type: Api::Enums::V1::TimeoutType::TIMEOUT_TYPE_START_TO_CLOSE,
               last_heartbeat_details: []

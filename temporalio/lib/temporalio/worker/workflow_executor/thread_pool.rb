@@ -1,0 +1,216 @@
+# frozen_string_literal: true
+
+require 'etc'
+require 'temporalio/internal/bridge/api'
+require 'temporalio/internal/proto_utils'
+require 'temporalio/internal/worker/workflow_instance'
+require 'temporalio/scoped_logger'
+require 'temporalio/worker/thread_pool'
+require 'temporalio/worker/workflow_executor'
+require 'temporalio/workflow'
+require 'temporalio/workflow/definition'
+require 'timeout'
+
+module Temporalio
+  class Worker
+    class WorkflowExecutor
+      # TODO(cretz): Check if worker shutdown issues evictions to all workflows
+      class ThreadPool < WorkflowExecutor
+        def self.default
+          @default ||= ThreadPool.new
+        end
+
+        def initialize(max_threads: [4, Etc.nprocessors].max, thread_pool: Temporalio::Worker::ThreadPool.default) # rubocop:disable Lint/MissingSuper
+          @max_threads = max_threads
+          @thread_pool = thread_pool
+          @workers_mutex = Mutex.new
+          @workers = []
+          @workers_by_run_id = {}
+        end
+
+        def _validate_worker(worker, worker_options)
+          # Do nothing
+        end
+
+        def _activate(activation, worker_options, &)
+          # Get applicable worker
+          worker = @workers_mutex.synchronize do
+            @workers_by_run_id.fetch(activation.run_id) do
+              # If not found, get a new one either by creating if not enough or find the one with the fewest.
+              new_worker = if @workers.size < @max_threads
+                             created_worker = Worker.new(self)
+                             @workers << Worker.new(self)
+                             created_worker
+                           else
+                             @workers.min_by(&:workflow_count)
+                           end
+              @workers_by_run_id[activation.run_id] = new_worker
+              new_worker.workflow_count += 1
+              new_worker
+            end
+          end
+          raise "No worker for run ID #{activation.run_id}" unless worker
+
+          # Enqueue activation
+          worker.enqueue_activation(activation, worker_options, &)
+        end
+
+        def _thread_pool
+          @thread_pool
+        end
+
+        def _remove_workflow(run_id)
+          @workers_mutex.synchronize do
+            worker = @workers_by_run_id.delete(run_id)
+            if worker
+              worker.workflow_count -= 1
+              # Remove worker from array if done. The array should be small enough that the delete being O(N) is not
+              # worth using a set or a map.
+              if worker.workflow_count.zero?
+                @workers.delete(worker)
+                worker.shutdown
+              end
+            end
+          end
+        end
+
+        class Worker
+          LOG_ACTIVATIONS = false
+
+          attr_accessor :workflow_count
+
+          def initialize(executor)
+            @executor = executor
+            @workflow_count = 0
+            @queue = Queue.new
+            @running_workflows = {}
+            executor._thread_pool.execute { run }
+          end
+
+          def enqueue_activation(activation, worker_options, &completion_block)
+            @queue << [:activate, activation, worker_options, completion_block]
+          end
+
+          def shutdown
+            @queue << [:shutdown]
+          end
+
+          private
+
+          def run
+            loop do
+              work = @queue.pop
+              if work.is_a?(Exception)
+                Warning.warn("Failed activation: #{work}")
+              elsif work.is_a?(Array)
+                case work.first
+                when :shutdown
+                  return
+                when :activate
+                  activate(work[1], work[2], &work[3])
+                end
+              end
+            rescue Exception => e # rubocop:disable Lint/RescueException
+              Warning.warn("Unexpected failure during run: #{e.full_message}")
+            end
+          end
+
+          def activate(activation, worker_options, &)
+            worker_options.logger.debug("Received workflow activation: #{activation}") if LOG_ACTIVATIONS
+
+            # Check whether it has eviction
+            cache_remove_job = activation.jobs.find { |j| !j.remove_from_cache.nil? }&.remove_from_cache
+
+            # If it's eviction only, just evict inline and do nothing else
+            if cache_remove_job && activation.jobs.size == 1
+              evict(activation.run_id)
+              worker_options.logger.debug('Sending empty workflow completion') if LOG_ACTIVATIONS
+              yield Internal::Bridge::Api::WorkflowCompletion::WorkflowActivationCompletion.new(
+                run_id: activation.run_id,
+                successful: Internal::Bridge::Api::WorkflowCompletion::Success.new
+              )
+              return
+            end
+
+            completion = Timeout.timeout(
+              worker_options.deadlock_timeout,
+              DeadlockError,
+              # TODO(cretz): Document that this affects all running workflows on this worker
+              # and maybe test to see how that is mitigated
+              "[TMPRL1101] Potential deadlock detected: workflow didn't yield " \
+              "within #{worker_options.deadlock_timeout} second(s)."
+            ) do
+              # Get or create workflow
+              instance = @running_workflows[activation.run_id]
+              unless instance
+                instance = create_instance(activation, worker_options)
+                @running_workflows[activation.run_id] = instance
+              end
+
+              # Activate. We expect most errors in here to have been captured inside.
+              instance.activate(activation)
+            rescue Exception => e # rubocop:disable Lint/RescueException
+              worker_options.logger.error("Failed activation on workflow run ID: #{activation.run_id}")
+              worker_options.logger.error(e)
+              Internal::Worker::WorkflowInstance.new_completion_with_failure(
+                run_id: activation.run_id,
+                error: e,
+                failure_converter: worker_options.data_converter.failure_converter,
+                payload_converter: worker_options.data_converter.payload_converter
+              )
+            end
+
+            # Go ahead and evict if there is an eviction job
+            evict(activation.run_id) if cache_remove_job
+
+            # Complete the activation
+            worker_options.logger.debug("Sending workflow completion: #{completion}") if LOG_ACTIVATIONS
+            yield completion
+          end
+
+          def create_instance(initial_activation, worker_options)
+            # Extract start job
+            init_job = initial_activation.jobs.find { |j| !j.initialize_workflow.nil? }&.initialize_workflow
+            raise 'Missing initialize job in initial activation' unless init_job
+
+            # Obtain definition
+            # TODO(cretz): Dynamic workflows
+            definition = worker_options.workflow_definitions[init_job.workflow_type]
+            unless definition
+              raise Error::ApplicationError.new(
+                "Workflow type #{init_job.workflow_type} is not registered on this worker, available workflows: " +
+                  worker_options.workflow_definitions.keys.compact.sort.join(', '),
+                type: 'NotFoundError'
+              )
+            end
+
+            Internal::Worker::WorkflowInstance.new(
+              Internal::Worker::WorkflowInstance::Details.new(
+                namespace: worker_options.namespace,
+                task_queue: worker_options.task_queue,
+                definition:,
+                initial_activation:,
+                logger: worker_options.logger,
+                payload_converter: worker_options.data_converter.payload_converter,
+                failure_converter: worker_options.data_converter.failure_converter,
+                interceptors: worker_options.workflow_interceptors,
+                disable_eager_activity_execution: worker_options.disable_eager_activity_execution,
+                illegal_calls: worker_options.illegal_calls,
+                workflow_failure_exception_types: worker_options.workflow_failure_exception_types
+              )
+            )
+          end
+
+          def evict(run_id)
+            @running_workflows.delete(run_id)
+            @executor._remove_workflow(run_id)
+          end
+        end
+
+        private_constant :Worker
+
+        class DeadlockError < Exception; end # rubocop:disable Lint/InheritException
+      end
+    end
+  end
+end

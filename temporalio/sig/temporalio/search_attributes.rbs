@@ -27,11 +27,10 @@ module Temporalio
                   | (Hash[Key, Object] existing) -> void
                   | -> void
 
-    def []=: (Key key, Object? value) -> void
+    def []=: (Key | String | Symbol key, Object? value) -> void
     def []: (Key key) -> Object?
 
-    def delete: (Key key) -> void
-              | (String key) -> void
+    def delete: (Key | String | Symbol key) -> void
 
     def each: { (Key key, Object value) -> void } -> self
 
