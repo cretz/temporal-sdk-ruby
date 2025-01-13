@@ -17,7 +17,7 @@ module Temporalio
         end
 
         # @!visibility private
-        def _validate_worker(_worker, _worker_state)
+        def _validate_worker(_workflow_worker, _worker_state)
           raise 'Ractor support is not currently working, please set ' \
                 'workflow_executor to Temporalio::Worker::WorkflowExecutor::ThreadPool'
         end

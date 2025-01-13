@@ -3,6 +3,10 @@
 module Temporalio
   # Representation of a workflow's history.
   class WorkflowHistory
+    def self.from_history_json(json)
+      raise NotImplementedError, 'TODO'
+    end
+
     # History events for the workflow.
     attr_reader :events
 
@@ -17,6 +21,10 @@ module Temporalio
       raise 'First event not a start event' if start.nil?
 
       start.workflow_id
+    end
+
+    def self.to_history_json
+      raise NotImplementedError, 'TODO'
     end
   end
 end

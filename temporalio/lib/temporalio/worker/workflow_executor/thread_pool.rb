@@ -36,7 +36,7 @@ module Temporalio
         end
 
         # @!visibility private
-        def _validate_worker(worker, worker_state)
+        def _validate_worker(workflow_worker, worker_state)
           # Do nothing
         end
 

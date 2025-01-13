@@ -37,6 +37,10 @@ gems:
   version: '0'
   source:
     type: stdlib
+- name: benchmark
+  version: '0'
+  source:
+    type: stdlib
 - name: bigdecimal
   version: '0'
   source:
