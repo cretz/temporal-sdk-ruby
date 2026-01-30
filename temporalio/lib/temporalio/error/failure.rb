@@ -233,5 +233,36 @@ module Temporalio
         @retry_state = retry_state
       end
     end
+
+    # Error raised on Nexus operation failure.
+    #
+    # WARNING: Nexus support is experimental.
+    class NexusOperationError < Failure
+      # @return [String] Nexus endpoint.
+      attr_reader :endpoint
+      # @return [String] Nexus service.
+      attr_reader :service
+      # @return [String] Nexus operation.
+      attr_reader :operation
+      # @return [String, nil] Operation token for async operations.
+      attr_reader :operation_token
+
+      # @!visibility private
+      def initialize(
+        message,
+        endpoint:,
+        service:,
+        operation:,
+        operation_token:
+      )
+        super(message)
+        @endpoint = endpoint
+        @service = service
+        @operation = operation
+        @operation_token = operation_token
+      end
+    end
+
+    # TODO: Add NexusHandlerError (extends Failure) for handler-side errors
   end
 end

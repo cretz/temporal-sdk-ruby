@@ -124,5 +124,20 @@ module Temporalio
         retry_state: RetryState::enum?
       ) -> void
     end
+
+    class NexusOperationError < Failure
+      attr_reader endpoint: String
+      attr_reader service: String
+      attr_reader operation: String
+      attr_reader operation_token: String?
+
+      def initialize: (
+        String message,
+        endpoint: String,
+        service: String,
+        operation: String,
+        operation_token: String?
+      ) -> void
+    end
   end
 end

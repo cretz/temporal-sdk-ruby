@@ -190,6 +190,15 @@ module Temporalio
                       zero_means_nil: true
                     )
                   )
+                elsif failure.nexus_operation_failure_info
+                  token = failure.nexus_operation_failure_info.operation_token
+                  Error::NexusOperationError.new(
+                    Internal::ProtoUtils.string_or(failure.message, 'Nexus operation error'),
+                    endpoint: failure.nexus_operation_failure_info.endpoint,
+                    service: failure.nexus_operation_failure_info.service,
+                    operation: failure.nexus_operation_failure_info.operation,
+                    operation_token: token.empty? ? nil : token
+                  )
                 else
                   Error::Failure.new(Internal::ProtoUtils.string_or(failure.message, 'Failure error'))
                 end
